@@ -1,0 +1,60 @@
+# Palestra 2.0 per iPhone
+
+L'app è fatta da questi file, da tenere insieme nella stessa cartella:
+`index.html`, `sw.js`, `manifest.json`, `icon-180.png`, `icon-192.png`, `icon-512.png`.
+
+## Aggiornare dalla versione precedente
+1. Nel repository `palestra` su GitHub ricarica **tutti i file**, sostituendo i vecchi. C'è anche una nuova icona.
+2. Sull'iPhone apri l'app con internet attivo, chiudila e riaprila: compare la versione 2.0.
+
+**Schede e allenamenti già salvati restano.** Per sicurezza, prima di aggiornare fai un backup dalla vecchia app (scheda Backup → Esporta).
+
+## La prima cosa da fare
+Tocca **👤 in alto a destra** e inserisci **peso, altezza, età e sesso**. Servono per stimare le calorie.
+Lì puoi anche cambiare gli obiettivi giornalieri. Quelli predefiniti sono:
+- 400 kcal attive;
+- 30 minuti di esercizio;
+- 4 allenamenti a settimana.
+
+## Le sezioni
+- **Oggi**
+  - i tre anelli: Movimento (kcal attive), Esercizio (minuti) e allenamenti della settimana;
+  - la prossima scheda da fare;
+  - i pulsanti per far partire un'attività cardio;
+  - il grafico della settimana e le ultime attività.
+- **Schede**: crei e modifichi le schede. Mentre scrivi il nome di un esercizio l'app ti suggerisce quelli più comuni. Dal menu ••• puoi **duplicare** una scheda.
+- **Storico**: un calendario del mese, con un pallino arancione per i pesi e uno verde per il cardio. Tocca un giorno per vedere cosa hai fatto, tocca un'attività per il dettaglio, dove puoi anche modificarla o eliminarla.
+- **Progressi**
+  - **Pesi**: grafico per esercizio (carico massimo, 1RM stimato, volume), record personali e serie per gruppo muscolare negli ultimi 7 giorni;
+  - **Cardio**: kcal o minuti per settimana e statistiche di ogni attività (km, miglior ritmo, vittorie/pareggi/sconfitte);
+  - **Corpo**: andamento del peso, indice di massa corporea e kcal che bruci a riposo.
+
+## Cardio e sport
+- In **Oggi** tocca un'attività (Corsa, Calcio, Tennis…) oppure **Altre** per vedere tutta la lista, circa 20 attività.
+- Parte il **cronometro**. Puoi andare in pausa, riprendere, oppure ridurre la schermata con ⌄ e usare l'app normalmente.
+- Quando tocchi **Termina** puoi:
+  - controllare l'orario di inizio e di fine;
+  - inserire i km (corsa, camminata, bici, nuoto, escursionismo) e vedere il ritmo;
+  - scegliere l'intensità;
+  - per gli sport, segnare l'esito e il risultato (es. "6-4 7-5").
+- **Registra un'attività già fatta**: per esempio la partita di ieri sera. Scegli l'attività e scrivi data, inizio e fine.
+- Il cronometro continua anche se chiudi l'app: si basa sull'orario di inizio.
+
+## Come vengono stimate le kcal
+**kcal = MET × metabolismo a riposo × ore**
+- **MET**: indica quanto è impegnativa un'attività rispetto allo stare fermi. I valori vengono dal *Compendium of Physical Activities*.
+- Per corsa, camminata e bici, se inserisci i km l'app calcola la velocità e usa il MET corrispondente.
+- **Metabolismo a riposo**: viene calcolato con la formula di Mifflin-St Jeor, partendo dal tuo profilo.
+- **kcal attive**: quelle in più rispetto a stare fermo. Sono le stesse "calorie attive" dell'app Fitness di Apple.
+- Anche gli allenamenti con i pesi ora registrano inizio e fine, quindi hanno durata e kcal. L'intensità si imposta nel profilo.
+- **È una stima**: l'errore tipico è intorno al ±20%.
+
+## Durante l'allenamento con i pesi
+- In alto vedi durata, kcal e serie fatte.
+- Quando superi il tuo carico massimo su un esercizio compare **★ Record**.
+- Con **Schermo sempre acceso**, attivo di default, l'iPhone non si blocca mentre ti alleni.
+- Il bip a fine recupero si disattiva dal profilo. Non si sente con il silenzioso attivo.
+
+## Da sapere
+- I dati sono **solo sul telefono**. Ogni tanto fai **👤 → Esporta backup** e salvalo in File o iCloud Drive.
+- **Indietro**: scorri dal bordo sinistro dello schermo.
