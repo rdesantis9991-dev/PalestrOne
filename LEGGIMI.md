@@ -1,9 +1,24 @@
-# Palestra 2.0 per iPhone
+# Palestra 3.0 per iPhone
 
 L'app è fatta da questi file, da tenere insieme nella stessa cartella:
 `index.html`, `sw.js`, `manifest.json`, `icon-180.png`, `icon-192.png`, `icon-512.png`.
 
-## Aggiornare dalla versione precedente
+## Novità della versione 3.0
+Pensate per l'app installata con Sideloadly (nella versione web l'app funziona come prima):
+- **Avviso a fine recupero** anche con lo schermo bloccato o se stai usando un'altra app: arriva una notifica e il telefono vibra, anche in silenzioso. La prima volta che inizi un allenamento l'app chiede il permesso per le notifiche: rispondi **Consenti**.
+- **Il timer di recupero ti dice cosa viene dopo** ("Squat · serie 2/3", "Poi: Lat machine") e **non si perde** se l'app viene chiusa.
+- **Promemoria allenamento** (👤 → Notifiche): scegli giorni e ora, la notifica ti dice quale scheda tocca. Se quel giorno ti sei già allenato non arriva.
+- **Schermo sempre acceso** con il sistema nativo dell'iPhone, più affidabile.
+- **Backup automatico** nella cartella "Palestra": la trovi nell'app File (Sul mio iPhone → Palestra) e sul PC con iTunes (icona dell'iPhone → Condivisione file → Palestra). Un file sempre aggiornato più una copia per ognuna delle ultime 6 settimane. Se i dati dell'app sparissero, all'apertura l'app propone di ripristinarli da lì.
+- **Esporta backup** apre il foglio di condivisione di iOS (Salva su File, AirDrop, Mail…).
+- **Vibrazioni** quando spunti una serie, a fine recupero, quando salvi e quando fai un record.
+
+## Aggiornare alla 3.0
+1. Su GitHub, nel repository della palestra: **Add file → Upload files**, trascina **`index.html` e `sw.js`** di questa cartella e fai **Commit changes**.
+2. Apri `.github/workflows/build-ios.yml`, clicca la **matita**, seleziona tutto il testo (**Ctrl + A**), incolla il contenuto del file `build-ios.yml` di questa cartella e fai **Commit changes**.
+3. Quando in **Actions** compare la spunta verde, scarica il nuovo **Palestra.ipa** da **Releases** e installalo con Sideloadly. Se avevi già l'app, schede e allenamenti restano.
+
+## Aggiornare dalla versione 1 alla 2
 1. Nel repository `palestra` su GitHub ricarica **tutti i file**, sostituendo i vecchi. C'è anche una nuova icona.
 2. Sull'iPhone apri l'app con internet attivo, chiudila e riaprila: compare la versione 2.0.
 
@@ -58,3 +73,10 @@ Lì puoi anche cambiare gli obiettivi giornalieri. Quelli predefiniti sono:
 ## Da sapere
 - I dati sono **solo sul telefono**. Ogni tanto fai **👤 → Esporta backup** e salvalo in File o iCloud Drive.
 - **Indietro**: scorri dal bordo sinistro dello schermo.
+
+## App vera per iPhone (con Sideloadly)
+GitHub può trasformare l'app in un'app installabile (Palestra.ipa), che si affianca all'app Musica senza sostituirla.
+1. **Una volta sola**: nel repository della palestra su GitHub clicca **Add file → Create new file**. Come nome scrivi `.github/workflows/build-ios.yml`, incolla tutto il contenuto del file `build-ios.yml` di questa cartella, poi **Commit changes**.
+2. Dopo 5–10 minuti (scheda **Actions**, spunta verde) apri **Releases** nella colonna destra del repository e scarica **Palestra.ipa**.
+3. Installala con **Sideloadly** come l'app Musica. Il rinnovo automatico ogni 7 giorni vale per entrambe.
+- **Per portare i dati**: nella versione web fai **👤 → Esporta backup** e salvalo in File; poi nell'app nuova importalo dalla stessa sezione.

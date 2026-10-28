@@ -260,6 +260,10 @@ canvas{width:100%;height:210px;display:block;margin-top:14px}
 .timer button svg{width:16px;height:16px}
 .timer .tb{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);transition:width .25s linear}
 .timer.fine #ttime{color:var(--ok)}
+.timer .tl3{font-size:12px;color:var(--text2);max-width:118px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.ms.days{flex:1;justify-content:space-between}
+.ms.days button{flex:1;padding:7px 0;text-align:center}
+.ms.days button.on{background:var(--accent);color:#fff}
 
 /* attività in corso (schermo intero) */
 .live{position:fixed;inset:0;z-index:50;transform:translateY(100%);transition:transform .5s cubic-bezier(.32,.72,0,1);background:radial-gradient(120% 80% at 50% 0%,color-mix(in srgb,var(--lc,#1d4a0c) 85%,#000),#000 75%);visibility:hidden;display:flex;flex-direction:column;align-items:center;padding:calc(env(safe-area-inset-top) + 8px) 24px calc(env(safe-area-inset-bottom) + 28px)}
@@ -332,7 +336,7 @@ input[type=file]{display:none}
 
 <div class="dock">
   <div class="timer glass" id="timer" hidden>
-    <div><div class="tl2">Recupero</div></div>
+    <div style="min-width:0"><div class="tl2">Recupero</div><div class="tl3" id="tnext"></div></div>
     <span id="ttime" class="num">0:00</span>
     <button data-act="tadd" data-d="-15">−15</button>
     <button data-act="tadd" data-d="15">+15</button>
@@ -420,6 +424,18 @@ const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); retu
 const lunedi = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 document.addEventListener('touchstart', () => {}, { passive: true });
 
+/* ============ Funzioni dell'app per iPhone (Capacitor) ============
+   Esistono solo nell'app installata; nella versione web l'app funziona come prima. */
+const NAT = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const PLG = n => (NAT && Capacitor.Plugins && Capacitor.Plugins[n]) || null;
+const vibra = (style = 'LIGHT') => { const H = PLG('Haptics'); if (H) try { H.impact({ style }); } catch (e) {} };
+const vibraOk = () => { const H = PLG('Haptics'); if (H) try { H.notification({ type: 'SUCCESS' }); } catch (e) {} else try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} };
+async function permessoNotifiche() {
+  const LN = PLG('LocalNotifications'); if (!LN) return false;
+  try { let r = await LN.checkPermissions(); if (r.display !== 'granted' && r.display !== 'denied') r = await LN.requestPermissions(); return r.display === 'granted'; }
+  catch (e) { return false; }
+}
+
 /* ============ Attività e MET (Compendium of Physical Activities) ============ */
 const ATT = {
   corsa: { n: 'Corsa', e: '🏃', c: '#1f5f0a', dist: true, vel: 'run', met: { l: 7.0, m: 9.8, i: 11.8 } },
@@ -481,12 +497,61 @@ function normalizza(d) {
   d.profilo = Object.assign({ peso: '', altezza: '', eta: '', sesso: '' }, d.profilo);
   d.pesoLog = Array.isArray(d.pesoLog) ? d.pesoLog : [];
   d.obiettivi = Object.assign({ kcal: 400, minuti: 30, sett: 4 }, d.obiettivi);
-  d.opz = Object.assign({ suono: true, wake: true, metPesi: 3.5 }, d.opz);
+  d.opz = Object.assign({ suono: true, wake: true, metPesi: 3.5, notif: true }, d.opz);
+  d.opz.prom = Object.assign({ on: false, ora: '18:00', giorni: [1, 3, 5] }, d.opz.prom);
   d.version = 2; return d;
 }
 function load() { try { return normalizza(JSON.parse(localStorage.getItem(KEY))); } catch (e) { return normalizza(null); } }
 let S = load();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Errore di salvataggio'); } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Errore di salvataggio'); } backupAuto(); }
+
+/* Backup automatico nella cartella "Palestra" (app File → Sul mio iPhone → Palestra, oppure iTunes → Condivisione file).
+   Un file sempre aggiornato più una copia per settimana (le ultime 6). */
+const BK = 'Backup automatico.json';
+let bkT = null;
+function backupAuto() {
+  const FS = PLG('Filesystem'); if (!FS) return;
+  clearTimeout(bkT);
+  bkT = setTimeout(async () => {
+    if (!S.schede.length && !S.sessioni.length) return;   // mai sovrascrivere un backup buono con dati vuoti
+    const data = JSON.stringify(Object.assign({}, S, { esportato: new Date().toISOString() }));
+    try {
+      await FS.writeFile({ path: BK, directory: 'DOCUMENTS', encoding: 'utf8', data });
+      const sett = `Backup settimana ${isoOf(lunedi(new Date()))}.json`, r = await FS.readdir({ path: '', directory: 'DOCUMENTS' });
+      const nomi = (r.files || []).map(f => typeof f === 'string' ? f : f.name).filter(n => /^Backup settimana \d{4}-\d{2}-\d{2}\.json$/.test(n)).sort();
+      if (!nomi.includes(sett)) { await FS.writeFile({ path: sett, directory: 'DOCUMENTS', encoding: 'utf8', data }); nomi.push(sett); nomi.sort(); }
+      for (const n of nomi.slice(0, -6)) await FS.deleteFile({ path: n, directory: 'DOCUMENTS' }).catch(() => {});
+    } catch (e) { console.error(e); }
+  }, 2500);
+}
+/* Se i dati dell'app sono vuoti ma c'è un backup nella cartella Palestra, propone di ripristinarlo */
+async function recuperaBackup() {
+  const FS = PLG('Filesystem'); if (!FS || S.schede.length || S.sessioni.length) return;
+  try {
+    const r = await FS.readFile({ path: BK, directory: 'DOCUMENTS', encoding: 'utf8' }), d = JSON.parse(r.data);
+    if (!Array.isArray(d.schede) || !Array.isArray(d.sessioni) || !(d.schede.length || d.sessioni.length)) return;
+    if (confirm(`Nella cartella Palestra c'è un backup con ${plur(d.schede.length, 'scheda', 'schede')} e ${plur(d.sessioni.length, 'attività', 'attività')}${d.esportato ? ` (salvato il ${new Date(d.esportato).toLocaleDateString('it-IT')})` : ''}. Lo ripristino?`)) {
+      S = normalizza(d); save(); toast('Dati ripristinati'); render(); pianificaPromemoria();
+    }
+  } catch (e) {}
+}
+
+/* Promemoria: notifiche nei giorni scelti per i prossimi 14 giorni, saltando oggi se ti sei già allenato */
+let promT = null;
+function pianificaPromemoria() { clearTimeout(promT); promT = setTimeout(pianifica, 400); }
+async function pianifica() {
+  const LN = PLG('LocalNotifications'); if (!LN) return;
+  try { await LN.cancel({ notifications: [...Array(14)].map((_, i) => ({ id: 2000 + i })) }); } catch (e) {}
+  const p = S.opz.prom; if (!p || !p.on || !p.giorni.length) return;
+  const [hh, mm] = String(p.ora || '18:00').split(':').map(Number), oggi = oggiISO();
+  const fattoOggi = !!S.inCorso || S.sessioni.some(s => s.data === oggi), sc = prossimaScheda(), out = [];
+  for (let i = 0; i < 14; i++) {
+    const d = addD(new Date(), i); d.setHours(hh || 0, mm || 0, 0, 0);
+    if (d.getTime() <= Date.now() + 60000 || !p.giorni.includes(d.getDay()) || (i === 0 && fattoOggi)) continue;
+    out.push({ id: 2000 + i, title: 'È ora di allenarsi 💪', body: sc && sc.esercizi.length ? `Tocca a: ${sc.nome}` : 'Apri Palestra e inizia il tuo allenamento', schedule: { at: d, allowWhileIdle: true } });
+  }
+  if (out.length) try { await LN.schedule({ notifications: out }); } catch (e) { console.error(e); }
+}
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 
 const sessOrd = () => [...S.sessioni].sort((a, b) => b.data.localeCompare(a.data) || (b.inizio || b.ts || 0) - (a.inizio || a.ts || 0));
@@ -745,10 +810,16 @@ const V = {
         <label class="gitem"><span>Suono a fine recupero</span><input type="checkbox" class="sw" data-sw="suono" ${S.opz.suono ? 'checked' : ''}></label>
         <label class="gitem"><span>Schermo sempre acceso</span><input type="checkbox" class="sw" data-sw="wake" ${S.opz.wake ? 'checked' : ''}></label></div>
         <p class="gfoot">“Schermo sempre acceso” evita che l'iPhone si blocchi durante un allenamento o un'attività in corso.</p>
+        ${PLG('LocalNotifications') ? `<div class="ghead">Notifiche</div><div class="group">
+        <label class="gitem"><span>Avviso a fine recupero</span><input type="checkbox" class="sw" data-sw="notif" ${S.opz.notif ? 'checked' : ''}></label>
+        <label class="gitem"><span>Promemoria allenamento</span><input type="checkbox" class="sw" data-sw="prom" ${S.opz.prom.on ? 'checked' : ''}></label>
+        ${S.opz.prom.on ? `<div class="fr"><label>Ora</label><input type="time" data-prom="ora" value="${esc(S.opz.prom.ora)}"></div>
+        <div class="gitem"><div class="ms days" data-ms="giorni">${[1, 2, 3, 4, 5, 6, 0].map(g => `<button data-v="${g}" class="${S.opz.prom.giorni.includes(g) ? 'on' : ''}">${'DLMMGVS'[g]}</button>`).join('')}</div></div>` : ''}</div>
+        <p class="gfoot">L'avviso a fine recupero arriva anche con lo schermo bloccato o se stai usando un'altra app, e fa vibrare il telefono anche in silenzioso. Il promemoria ti ricorda l'allenamento nei giorni scelti, con il nome della prossima scheda; se ti sei già allenato quel giorno non arriva.</p>` : ''}
         <div class="ghead">Backup</div><div class="group"><button class="gitem tap acc" data-act="esporta">Esporta backup</button><button class="gitem tap acc" data-act="importa">Importa backup</button></div>
-        <p class="gfoot">I dati sono salvati solo su questo telefono. Ogni tanto esporta un backup e salvalo in File o iCloud Drive.</p>
+        <p class="gfoot">${PLG('Filesystem') ? 'L’app salva da sola un backup nella cartella “Palestra”, che trovi nell’app File (Sul mio iPhone → Palestra) e sul PC con iTunes (icona dell’iPhone → Condivisione file → Palestra): uno sempre aggiornato più una copia per ognuna delle ultime 6 settimane. Se elimini l’app la cartella sparisce: ogni tanto esporta un backup e salvalo su iCloud Drive o sul PC.' : 'I dati sono salvati solo su questo telefono. Ogni tanto esporta un backup e salvalo in File o iCloud Drive.'}</p>
         <div class="ghead">&nbsp;</div><div class="group"><button class="gitem tap red" data-act="reset">Cancella tutti i dati</button></div>
-        <p class="gfoot" style="text-align:center;padding-top:20px">Palestra · versione 2.0 · ${plur(S.schede.length, 'scheda', 'schede')} · ${plur(S.sessioni.length, 'attività', 'attività')}</p>`
+        <p class="gfoot" style="text-align:center;padding-top:20px">Palestra · versione 3.0${NAT ? ' · app' : ''} · ${plur(S.schede.length, 'scheda', 'schede')} · ${plur(S.sessioni.length, 'attività', 'attività')}</p>`
     };
   }
 };
@@ -890,39 +961,67 @@ function tick() {
   }
 }
 setInterval(tick, 500);
-const T = { end: 0, tot: 0, iv: null, suonato: false, hide: null };
+const T = { end: 0, tot: 0, iv: null, suonato: false, hide: null, info: '' };
 let AC = null;
 function sbloccaAudio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) {} }
 function bip() {
+  vibraOk();
   if (!S.opz.suono) return;
   try {
     if (!AC) return; const t0 = AC.currentTime;
     [0, .25, .5].forEach((d, k) => { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = k === 2 ? 1320 : 880; o.connect(g); g.connect(AC.destination); g.gain.setValueAtTime(.0001, t0 + d); g.gain.exponentialRampToValueAtTime(.4, t0 + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + d + .2); o.start(t0 + d); o.stop(t0 + d + .22); });
   } catch (e) {}
-  try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
 }
-function avviaTimer(sec) {
+/* Il timer è salvato: se l'app viene chiusa durante il recupero, riaprendola riparte da dove era */
+const TKEY = 'palestra-timer';
+const salvaTimer = () => { try { if (T.end && !T.suonato) localStorage.setItem(TKEY, JSON.stringify({ end: T.end, tot: T.tot, info: T.info })); else localStorage.removeItem(TKEY); } catch (e) {} };
+function avviaTimer(sec, info, end) {
   if (!sec) return;
-  clearTimeout(T.hide); T.tot = sec; T.end = Date.now() + sec * 1000; T.suonato = false;
-  const el = $('#timer'); el.hidden = false; el.classList.remove('fine');
-  clearInterval(T.iv); T.iv = setInterval(tickT, 250); tickT();
+  clearTimeout(T.hide); T.tot = sec; T.end = end || Date.now() + sec * 1000; T.suonato = false; T.info = info || '';
+  const el = $('#timer'); el.hidden = false; el.classList.remove('fine'); $('#tnext').textContent = T.info;
+  clearInterval(T.iv); T.iv = setInterval(tickT, 250); tickT(); salvaTimer();
+  if (document.hidden) notificaRecupero(true);
 }
 function tickT() {
+  if (!T.end) return;
   const r = Math.max(0, Math.ceil((T.end - Date.now()) / 1000));
   $('#ttime').textContent = r ? clock(r) : 'Vai! 💪';
   $('#tfill').style.width = (T.tot ? Math.min(100, r / T.tot * 100) : 0) + '%';
-  if (!r && !T.suonato) { T.suonato = true; bip(); clearInterval(T.iv); $('#timer').classList.add('fine'); T.hide = setTimeout(fermaTimer, 6000); }
+  if (!r && !T.suonato) {
+    T.suonato = true; clearInterval(T.iv); salvaTimer();
+    if (!(document.hidden && S.opz.notif && PLG('LocalNotifications'))) bip();   // a schermo spento ci pensa la notifica
+    $('#timer').classList.add('fine'); T.hide = setTimeout(fermaTimer, 6000);
+  }
 }
-function fermaTimer() { clearInterval(T.iv); clearTimeout(T.hide); $('#timer').hidden = true; }
-let WL = null;
+function fermaTimer() { clearInterval(T.iv); clearTimeout(T.hide); $('#timer').hidden = true; T.end = 0; salvaTimer(); notificaRecupero(false); }
+/* Notifica di fine recupero: viene programmata quando l'app va in background o lo schermo si blocca,
+   e tolta quando torni nell'app (lì suona il bip normale) */
+async function notificaRecupero(on) {
+  const LN = PLG('LocalNotifications'); if (!LN) return;
+  try { await LN.cancel({ notifications: [{ id: 1001 }] }); } catch (e) {}
+  if (!on || !S.opz.notif || !T.end || T.suonato || T.end - Date.now() < 1500) return;
+  try { await LN.schedule({ notifications: [{ id: 1001, title: 'Recupero finito 💪', body: T.info || 'Pronto per la prossima serie', schedule: { at: new Date(T.end), allowWhileIdle: true } }] }); } catch (e) { console.error(e); }
+}
+let WL = null, KA = false;
 async function schermo() {
-  const serve = S.opz.wake && (S.inCorso || S.attivita) && !document.hidden;
+  const serve = S.opz.wake && (S.inCorso || S.attivita) && !document.hidden, K = PLG('KeepAwake');
+  if (K) { try { if (serve && !KA) { await K.keepAwake(); KA = true; } else if (!serve && KA) { await K.allowSleep(); KA = false; } } catch (e) {} return; }
   try {
     if (serve && !WL && navigator.wakeLock) { WL = await navigator.wakeLock.request('screen'); WL.addEventListener('release', () => { WL = null; }); }
     if (!serve && WL) { await WL.release(); WL = null; }
   } catch (e) { WL = null; }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickT(); tick(); render(true); } schermo(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { notificaRecupero(true); salvaTimer(); }
+  else {
+    notificaRecupero(false);
+    /* recupero finito mentre eri fuori dall'app: niente bip in ritardo, la notifica è già arrivata */
+    if (T.end && !T.suonato && Date.now() - T.end > 2000) { T.suonato = true; clearInterval(T.iv); salvaTimer(); $('#timer').classList.add('fine'); $('#ttime').textContent = 'Vai! 💪'; $('#tfill').style.width = '0%'; clearTimeout(T.hide); T.hide = setTimeout(fermaTimer, 4000); }
+    else tickT();
+    tick(); render(true); pianificaPromemoria();
+  }
+  schermo();
+});
 
 /* ============ Allenamento con i pesi ============ */
 function inizia(id) {
@@ -938,6 +1037,9 @@ function inizia(id) {
     })
   };
   save(); schermo(); TABS.oggi.length = 1; if (TAB !== 'oggi') vaiTab('oggi'); else render(); window.scrollTo(0, 0);
+  vibra('MEDIUM'); pianificaPromemoria();
+  /* la prima volta chiede il permesso per l'avviso di fine recupero */
+  if (S.opz.notif && PLG('LocalNotifications')) permessoNotifiche();
 }
 function termina() {
   const w = S.inCorso;
@@ -954,7 +1056,8 @@ function termina() {
   const sess = { id: w.id, ts: Date.now(), tipo: 'pesi', data: w.data || oggiISO(), inizio: w.inizio, fine, durata: Math.round((fine - w.inizio) / 1000), met: S.opz.metPesi, schedaId: w.schedaId, schedaNome: w.schedaNome, note: (w.note || '').trim(), pr,
     esercizi: w.esercizi.map(x => ({ esercizioId: x.esercizioId, nome: x.nome, target: x.target, sets: x.sets })) };
   if (w.data !== oggiISO()) { const ini = dt(w.data, hhmm(w.inizio)); sess.inizio = ini; sess.fine = ini + sess.durata * 1000; }
-  S.sessioni.push(sess); S.inCorso = null; save(); fermaTimer(); schermo();
+  S.sessioni.push(sess); S.inCorso = null; save(); fermaTimer(); schermo(); pianificaPromemoria();
+  if (pr.length) vibraOk(); else vibra('MEDIUM');
   toast(pr.length ? `🎉 Nuovo record: ${pr.join(', ')}` : 'Allenamento salvato 💪');
   TABS.oggi.length = 1; TABS.storico.length = 1; TAB = 'storico'; push('sess', { id: sess.id });
   if (sess.durata > 3 * 3600) setTimeout(() => { if (confirm(`L'allenamento risulta lungo ${durTxt(sess.durata)}. Vuoi correggere gli orari?`)) modificaSess(sess.id); }, 600);
@@ -999,7 +1102,7 @@ function stopLive() {
   save(); aggLive();
   const sec = ((a.pausaDa) - a.inizio - a.pausaTot) / 1000;
   formCardio({ att: a.att, data: isoOf(new Date(a.inizio)), inizio: a.inizio, fine: a.pausaDa, durata: sec, int: a.int || 'm', live: true }, async s => {
-    S.sessioni.push(s); S.attivita = null; save(); schermo(); $('#live').classList.remove('open');
+    S.sessioni.push(s); S.attivita = null; save(); schermo(); $('#live').classList.remove('open'); vibraOk(); pianificaPromemoria();
     const k = kcalOf(s); toast(`${ATT[s.att].n} salvata${k ? ' · ' + Math.round(k.att) + ' kcal' : ''} 💪`);
     TABS.oggi.length = 1; TABS.storico.length = 1; TAB = 'storico'; push('sess', { id: s.id });
   }, () => { a.pausaTot += Date.now() - a.pausaDa; a.pausaDa = null; save(); aggLive(); });
@@ -1051,7 +1154,7 @@ async function aggiungiAttivita() {
   const att = await scegliAttivita('Che attività hai fatto?'); if (!att) return;
   const now = new Date(), fin = now.getTime(), ini = fin - 3600e3;
   formCardio({ att, data: oggiISO(), inizio: ini, fine: fin, int: 'm' }, async s => {
-    S.sessioni.push(s); save(); toast('Attività registrata'); render(true);
+    S.sessioni.push(s); save(); toast('Attività registrata'); render(true); pianificaPromemoria();
   });
 }
 function modificaSess(id) {
@@ -1151,18 +1254,23 @@ const AZ = {
     sbloccaAudio();
     const x = S.inCorso.esercizi[+b.dataset.i], j = +b.dataset.j, t = x.sets[j];
     t.fatto = !t.fatto;
+    vibra(t.fatto ? 'MEDIUM' : 'LIGHT');
     if (t.fatto) {
       if (!t.reps) { const r = parseInt(x.repsTarget, 10); if (isFinite(r)) t.reps = String(r); }
       const nx = x.sets[j + 1]; if (nx && !nx.fatto && !nx.kg && t.kg) { nx.kg = t.kg; if (!nx.reps) nx.reps = t.reps; }
-      avviaTimer(x.recupero);
+      /* Cosa viene dopo: la prossima serie di questo esercizio, oppure il prossimo esercizio */
+      const es = S.inCorso.esercizi, i0 = +b.dataset.i, ks = x.sets.findIndex(s => !s.fatto);
+      const ne = [...es.slice(i0 + 1), ...es.slice(0, i0)].find(e => e.sets.some(s => !s.fatto));
+      const info = ks >= 0 ? `${x.nome} · serie ${ks + 1}/${x.sets.length}` : ne ? `Poi: ${ne.nome}` : 'Ultima serie fatta!';
+      if (ks >= 0 || ne) avviaTimer(x.recupero, info);
     }
     save(); render(true);
   },
   addSet(b) { const x = S.inCorso.esercizi[+b.dataset.i], l = x.sets[x.sets.length - 1]; x.sets.push({ kg: l ? l.kg : '', reps: l ? l.reps : '', fatto: false }); save(); render(true); },
   delSet(b) { const x = S.inCorso.esercizi[+b.dataset.i]; if (x.sets.length > 1) { x.sets.pop(); save(); render(true); } },
   termina: () => termina(),
-  annulla() { if (confirm("Annullare l'allenamento? Quello che hai segnato andrà perso.")) { S.inCorso = null; save(); fermaTimer(); schermo(); render(); } },
-  tadd(b) { T.end = Math.max(Date.now(), T.end) + (+b.dataset.d) * 1000; T.tot = Math.max(T.tot, Math.ceil((T.end - Date.now()) / 1000)); if (T.suonato) avviaTimer(Math.max(15, Math.ceil((T.end - Date.now()) / 1000))); else tickT(); },
+  annulla() { if (confirm("Annullare l'allenamento? Quello che hai segnato andrà perso.")) { S.inCorso = null; save(); fermaTimer(); schermo(); render(); pianificaPromemoria(); } },
+  tadd(b) { vibra(); T.end = Math.max(Date.now(), T.end) + (+b.dataset.d) * 1000; T.tot = Math.max(T.tot, Math.ceil((T.end - Date.now()) / 1000)); if (T.suonato) avviaTimer(Math.max(15, Math.ceil((T.end - Date.now()) / 1000)), T.info); else { tickT(); salvaTimer(); } },
   tstop: () => fermaTimer(),
   startAtt: b => avviaAttivita(b.dataset.att),
   altreAtt: async () => { const k = await scegliAttivita('Inizia un’attività'); if (k) avviaAttivita(k); },
@@ -1183,24 +1291,39 @@ const AZ = {
     onSave: v => { const kg = num(v.kg); if (!kg || kg < 20 || kg > 300 || !v.data) { toast('Inserisci un peso valido'); return false; } S.pesoLog = S.pesoLog.filter(p => p.data !== v.data); S.pesoLog.push({ data: v.data, kg }); S.profilo.peso = String(pesoAttuale()); save(); render(true); toast('Peso registrato'); } }),
   delPeso: b => { if (confirm('Eliminare questa misurazione?')) { S.pesoLog = S.pesoLog.filter(p => p.data !== b.dataset.d); save(); render(true); } },
   async esporta() {
-    const name = `palestra-backup-${oggiISO()}.json`;
-    const file = new File([JSON.stringify(Object.assign({}, S, { esportato: new Date().toISOString() }), null, 2)], name, { type: 'application/json' });
+    const name = `palestra-backup-${oggiISO()}.json`, json = JSON.stringify(Object.assign({}, S, { esportato: new Date().toISOString() }), null, 2);
+    const FS = PLG('Filesystem'), SH = PLG('Share');
+    if (FS && SH) {   /* nell'app: foglio di condivisione di iOS (Salva su File, AirDrop, Mail…) */
+      try { const r = await FS.writeFile({ path: name, directory: 'CACHE', encoding: 'utf8', data: json }); await SH.share({ title: 'Backup palestra', files: [r.uri] }); }
+      catch (e) { if (!/cancel/i.test(String((e && e.message) || e))) toast('Condivisione non riuscita'); }
+      return;
+    }
+    const file = new File([json], name, { type: 'application/json' });
     try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup palestra' }); return; } } catch (e) { if (e.name === 'AbortError') return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   },
   importa: () => $('#imp').click(),
-  reset() { if (!confirm('Cancellare TUTTE le schede, gli allenamenti e il profilo?')) return; if (!confirm('Sicuro? Senza un backup non si torna indietro.')) return; S = normalizza(null); save(); fermaTimer(); for (const k in TABS) TABS[k].length = 1; TAB = 'oggi'; render(); }
+  reset() {
+    if (!confirm('Cancellare TUTTE le schede, gli allenamenti e il profilo?')) return; if (!confirm('Sicuro? Senza un backup non si torna indietro.')) return;
+    S = normalizza(null); save(); fermaTimer(); for (const k in TABS) TABS[k].length = 1; TAB = 'oggi'; render(); pianificaPromemoria();
+    const FS = PLG('Filesystem'); if (FS) FS.deleteFile({ path: BK, directory: 'DOCUMENTS' }).catch(() => {});
+  }
 };
+/* Vibrazione leggera sui comandi principali (solo nell'app) */
+const TAPTIC = new Set(['tab', 'inizia', 'startAtt', 'livePause', 'liveStop', 'termina', 'addSet', 'delSet', 'tstop', 'nuovaScheda', 'addEs']);
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   if (b.closest('.modal')) return;
   const f = AZ[b.dataset.act]; if (!f) return;
+  if (TAPTIC.has(b.dataset.act)) vibra();
   e.stopPropagation(); f(b, e);
 });
 document.addEventListener('click', e => {
   const b = e.target.closest('.ms button'); if (!b) return;
   const k = b.parentElement.dataset.ms, v = b.dataset.v;
+  vibra();
   if (k === 'sesso') S.profilo.sesso = v; else if (k === 'metPesi') S.opz.metPesi = num(v);
+  else if (k === 'giorni') { const g = +v, a = S.opz.prom.giorni, i = a.indexOf(g); if (i >= 0) a.splice(i, 1); else a.push(g); pianificaPromemoria(); }
   save(); render(true);
 });
 document.addEventListener('input', e => {
@@ -1215,7 +1338,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'selEs') { PRG.es = t.value; render(true); }
-  if (t.dataset.sw) { S.opz[t.dataset.sw] = t.checked; save(); schermo(); }
+  if (t.dataset.sw === 'prom' || t.dataset.sw === 'notif') {
+    const on = t.checked;
+    if (t.dataset.sw === 'prom') S.opz.prom.on = on; else S.opz.notif = on;
+    save(); render(true); pianificaPromemoria();
+    if (on) permessoNotifiche().then(ok => { if (!ok) toast('Attiva le notifiche per Palestra in Impostazioni di iPhone → Notifiche'); });
+  }
+  else if (t.dataset.sw) { S.opz[t.dataset.sw] = t.checked; save(); schermo(); }
+  if (t.dataset.prom === 'ora' && t.value) { S.opz.prom.ora = t.value; save(); pianificaPromemoria(); }
   if (t.dataset.e && /:nome$/.test(t.dataset.e)) render(true);
   if (t.id === 'imp' && t.files[0]) {
     const r = new FileReader();
@@ -1237,6 +1367,13 @@ setI('[data-tab="storico"]', I.storico + 'Storico'); setI('[data-tab="progressi"
 setI('#tx', I.x); setI('#lClose', I.down); setI('#lStop', I.stop);
 render(); schermo();
 if (S.attivita) apriLive();
+/* Timer di recupero rimasto in sospeso quando l'app è stata chiusa */
+try {
+  const tm = JSON.parse(localStorage.getItem(TKEY) || 'null');
+  if (tm && S.inCorso && tm.end > Date.now()) avviaTimer(tm.tot, tm.info, tm.end);
+  else localStorage.removeItem(TKEY);
+} catch (e) {}
+if (NAT) setTimeout(async () => { await recuperaBackup(); pianificaPromemoria(); backupAuto(); }, 800);
 if ('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>

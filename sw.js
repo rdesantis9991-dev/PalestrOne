@@ -1,6 +1,6 @@
 // Service worker: l'app si apre subito dalla cache (anche senza rete)
 // e in background scarica l'eventuale versione nuova, che vedrai all'apertura successiva.
-const CACHE = 'palestra-v2';
+const CACHE = 'palestra-v3';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

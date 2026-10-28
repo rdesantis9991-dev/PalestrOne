@@ -1,0 +1,88 @@
+# Trasforma la web app Palestra in un'app per iPhone (.ipa).
+# Parte da sola a ogni caricamento di file su GitHub, oppure a mano da Actions → "App iPhone" → Run workflow.
+# Il risultato si scarica dalla pagina Releases del repository: file Palestra.ipa, da installare con Sideloadly.
+
+name: App iPhone
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['LEGGIMI.md']
+
+concurrency:
+  group: app-iphone
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Scarica i file del repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Crea il progetto iPhone con Capacitor
+        run: |
+          mkdir www
+          cp index.html manifest.json icon-*.png www/
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "it.riccardo.palestra",
+            "appName": "Palestra",
+            "webDir": "www",
+            "backgroundColor": "#000000",
+            "ios": { "backgroundColor": "#000000", "contentInset": "never" }
+          }
+          EOF
+          npm init -y > /dev/null
+          # condivisione del backup, cartella Palestra, vibrazioni, notifiche, schermo sempre acceso
+          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/ios@8 @capacitor/share@8 @capacitor/filesystem@8 @capacitor/haptics@8 @capacitor/local-notifications@8 @capacitor-community/keep-awake@8
+          npx cap add ios
+
+      - name: Cartella Palestra, tema scuro, solo verticale
+        run: |
+          PLIST=ios/App/App/Info.plist
+          # cartella "Palestra" visibile nell'app File e in iTunes (Condivisione file), dove finiscono i backup automatici
+          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Dark" $PLIST
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" $PLIST
+
+      - name: Icona e schermata di avvio
+        run: |
+          for f in ios/App/App/Assets.xcassets/AppIcon.appiconset/*.png; do
+            sips -s format png -z 1024 1024 www/icon-512.png --out "$f"
+          done
+          sips -s format png -z 560 560 www/icon-512.png --out logo.png
+          for f in ios/App/App/Assets.xcassets/Splash.imageset/*.png; do
+            sips -p 2732 2732 --padColor 000000 logo.png --out "$f"
+          done
+
+      - name: Compila (senza firma, la firma la fa Sideloadly)
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=3.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry ../../Palestra.ipa Payload
+
+      - name: Pubblica Palestra.ipa nella pagina Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete app-iphone --yes --cleanup-tag || true
+          gh release create app-iphone Palestra.ipa --title "App iPhone (build ${{ github.run_number }})" \
+            --notes "Scarica Palestra.ipa e installala sull'iPhone con Sideloadly."
